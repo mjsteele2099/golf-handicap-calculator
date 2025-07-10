@@ -55,5 +55,3 @@ Thumbs.db
 # Vercel
 .vercel
 
-# Uploads (we'll handle these differently in production)
-static/profile_pics/ 
