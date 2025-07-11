@@ -17,11 +17,18 @@ export default function Home() {
       fetch('/api/courses').then(res => res.json()),
       fetch('/api/scores').then(res => res.json())
     ]).then(([golfers, courses, scores]) => {
+      const golferMap = golfers.reduce((map: Record<number, string>, golfer: { id: number; name: string }) => {
+        map[golfer.id] = golfer.name;
+        return map;
+      }, {});
       setStats({
         totalGolfers: Array.isArray(golfers) ? golfers.length : 0,
         totalCourses: Array.isArray(courses) ? courses.length : 0,
         totalScores: Array.isArray(scores) ? scores.length : 0,
-        recentScores: Array.isArray(scores) ? scores.slice(-5).reverse() : []
+        recentScores: Array.isArray(scores) ? scores.slice(-5).reverse().map(score => ({
+          ...score,
+          golfer_name: golferMap[score.golfer_id] || 'Unknown Golfer'
+        })) : []
       });
       setLoading(false);
     });
@@ -141,11 +148,11 @@ export default function Home() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <Text style={{ fontWeight: 600, marginBottom: '4px' }}>
-                    New score recorded
+                    {score.golfer_name} recorded a score
                   </Text>
-                                     <Text style={{ fontSize: '14px', color: '#6c757d' }}>
-                     Score: {score.gross_score} • {new Date(score.date_played).toLocaleDateString()}
-                   </Text>
+                  <Text style={{ fontSize: '14px', color: '#6c757d' }}>
+                    Score: {score.gross_score} • {new Date(score.date_played).toLocaleDateString()}
+                  </Text>
                 </div>
                 <i className="bi bi-activity" style={{ color: '#667eea', fontSize: '20px' }}></i>
               </div>
