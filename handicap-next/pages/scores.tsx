@@ -1,5 +1,6 @@
 import AddScoreForm from '../components/AddScoreForm';
 import { useEffect, useState } from 'react';
+import GolferAvatar from '../components/GolferList';
 
 export default function Scores() {
   const [scores, setScores] = useState<any[]>([]);
@@ -18,9 +19,14 @@ export default function Scores() {
       .then(data => setCourses(Array.isArray(data) ? data : []));
   }, []);
 
+  const getGolfer = (id: number) => golfers.find((g: any) => g.id === id);
   const getGolferName = (id: number) => {
-    const golfer = golfers.find((g: any) => g.id === id);
+    const golfer = getGolfer(id);
     return golfer ? golfer.name : id;
+  };
+  const getGolferProfilePic = (id: number) => {
+    const golfer = getGolfer(id);
+    return golfer ? golfer.profile_picture : undefined;
   };
   const getCourseName = (id: number) => {
     const course = courses.find((c: any) => c.id === id);
@@ -41,8 +47,14 @@ export default function Scores() {
         ) : (
           <ul style={{ listStyle: 'none', padding: 0 }}>
             {scores.map((score, idx) => (
-              <li key={score.id || idx} className="score-item">
-                <strong>Golfer:</strong> {getGolferName(score.golfer_id)} | <strong>Course:</strong> {getCourseName(score.course_id)} | <strong>Gross:</strong> {score.gross_score} | <strong>Date:</strong> {score.date_played} | <strong>Holes:</strong> {score.holes_played || 18}
+              <li key={score.id || idx} className="score-item" style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
+                <GolferAvatar profile_picture={getGolferProfilePic(score.golfer_id)} name={getGolferName(score.golfer_id)} size={32} />
+                <span style={{ fontWeight: 600, marginRight: 8 }}>{getGolferName(score.golfer_id)}</span>
+                <span style={{ color: '#888', marginRight: 8 }}>|</span>
+                <strong>Course:</strong> {getCourseName(score.course_id)} <span style={{ color: '#888', margin: '0 8px' }}>|</span>
+                <strong>Gross:</strong> {score.gross_score} <span style={{ color: '#888', margin: '0 8px' }}>|</span>
+                <strong>Date:</strong> {score.date_played} <span style={{ color: '#888', margin: '0 8px' }}>|</span>
+                <strong>Holes:</strong> {score.holes_played || 18}
               </li>
             ))}
           </ul>
