@@ -43,21 +43,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // Calculate differentials for each score
-  const scoresWithDifferentials = scores.map(score => {
+  // We'll build a list of 18-hole differentials, using the 2024 USGA method for 9-hole scores
+  let handicap_index: number | null = null;
+  let scoresWithDifferentials: any[] = [];
+  let eighteenHoleDifferentials: { id: number, differential: number, holes_played: number, is_nine_hole: boolean, details: any }[] = [];
+
+  // First, calculate differentials for all scores
+  scoresWithDifferentials = scores.map(score => {
     const course = Array.isArray(score.courses) ? score.courses[0] : score.courses;
     const differential = calculateDifferential(
       score.gross_score, 
       course.course_rating, 
       course.slope_rating
     );
-    
     return {
       ...score,
       course_name: course.name,
       course_rating: course.course_rating,
       slope_rating: course.slope_rating,
       differential,
-      used_in_calculation: false
+      used_in_calculation: false,
+      is_nine_hole: score.holes_played === 9
     };
   });
 
@@ -74,34 +80,80 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   }
 
-  // Sort by differential (best first) for handicap calculation
-  const sortedByDifferential = [...scoresWithDifferentials].sort((a, b) => a.differential - b.differential);
-  
-  // Determine how many scores to use based on USGA World Handicap System rules
-  const scoresUsed = getUSGAScoresUsed(scores.length);
-  
-  // Mark which scores are used in calculation
-  for (let i = 0; i < scoresUsed; i++) {
-    const scoreId = sortedByDifferential[i].id;
-    const scoreIndex = scoresWithDifferentials.findIndex(s => s.id === scoreId);
-    if (scoreIndex >= 0) {
-      scoresWithDifferentials[scoreIndex].used_in_calculation = true;
+  // Build the list of 18-hole differentials, using the expected method for 9-hole scores
+  // We need to recalculate the handicap index after each 9-hole score, so we process in chronological order (oldest to newest)
+  const chronologicalScores = [...scoresWithDifferentials].sort((a, b) => new Date(a.date_played).getTime() - new Date(b.date_played).getTime());
+  let runningDifferentials: number[] = [];
+  let runningEighteenHoleDifferentials: { id: number, differential: number, holes_played: number, is_nine_hole: boolean, details: any }[] = [];
+  let runningHandicapIndex: number | null = null;
+
+  for (let i = 0; i < chronologicalScores.length; i++) {
+    const score = chronologicalScores[i];
+    if (score.holes_played === 18) {
+      // 18-hole score, use as-is
+      runningEighteenHoleDifferentials.push({
+        id: score.id,
+        differential: score.differential,
+        holes_played: 18,
+        is_nine_hole: false,
+        details: score
+      });
+      runningDifferentials.push(score.differential);
+    } else if (score.holes_played === 9) {
+      // 9-hole score, use expected method
+      // Use the current runningHandicapIndex (or 0 if not established yet)
+      let expected_nine_hole = (runningHandicapIndex !== null) ? runningHandicapIndex / 2 : 0;
+      // 18-hole differential = 9-hole differential + expected 9-hole differential
+      let combined_differential = score.differential + expected_nine_hole;
+      runningEighteenHoleDifferentials.push({
+        id: score.id,
+        differential: combined_differential,
+        holes_played: 9,
+        is_nine_hole: true,
+        details: { ...score, expected_nine_hole, combined_differential }
+      });
+      runningDifferentials.push(combined_differential);
+    }
+    // After each score, recalculate the running handicap index (if at least 3 scores)
+    if (runningDifferentials.length >= 3) {
+      const sorted = [...runningDifferentials].sort((a, b) => a - b);
+      const used = getUSGAScoresUsed(sorted.length);
+      const lowest = sorted.slice(0, used);
+      runningHandicapIndex = Math.round((lowest.reduce((sum, d) => sum + d, 0) / used) * 10) / 10;
     }
   }
+
+  // Now, use the most recent runningHandicapIndex as the player's current index
+  handicap_index = runningHandicapIndex;
+
+  // Sort by differential (best first) for handicap calculation
+  const sortedByDifferential = [...runningEighteenHoleDifferentials].sort((a, b) => a.differential - b.differential);
+  const scoresUsed = getUSGAScoresUsed(sortedByDifferential.length);
+
+  // Mark which scores are used in calculation
+  let usedIds = new Set(sortedByDifferential.slice(0, scoresUsed).map(s => s.id));
+  scoresWithDifferentials = scoresWithDifferentials.map(s => ({
+    ...s,
+    used_in_calculation: usedIds.has(s.id)
+  }));
 
   // Calculate handicap index (average of lowest differentials)
   const lowestDifferentials = sortedByDifferential.slice(0, scoresUsed);
   const averageDifferential = lowestDifferentials.reduce((sum, score) => sum + score.differential, 0) / scoresUsed;
-  const handicap_index = Math.round(averageDifferential * 10) / 10; // Round to 1 decimal place
+  handicap_index = Math.round(averageDifferential * 10) / 10; // Round to 1 decimal place
 
   return res.status(200).json({
     handicap_index,
-    total_scores: scores.length,
+    total_scores: sortedByDifferential.length,
     scores_used: scoresUsed,
     average_differential: handicap_index,
     scores: scoresWithDifferentials,
     minimum_scores_needed: 0,
-    status: 'Handicap established'
+    status: 'Handicap established',
+    details: {
+      differentials: sortedByDifferential,
+      lowest_differentials: lowestDifferentials
+    }
   });
 }
 
