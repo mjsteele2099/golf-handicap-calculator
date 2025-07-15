@@ -17,6 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       id,
       gross_score, 
       date_played,
+      holes_played,
       courses!inner (
         id,
         name,
