@@ -3,21 +3,33 @@ import { supabase } from '../../lib/supabaseClient';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
-    const { data, error } = await supabase.from('scores').select('*');
+    // Join golfers and courses to include golfer name, profile_picture, and course name
+    const { data, error } = await supabase
+      .from('scores')
+      .select(`
+        id,
+        gross_score,
+        date_played,
+        holes_played,
+        golfer_id,
+        course_id,
+        golfers (id, name, profile_picture),
+        courses (id, name)
+      `);
     if (error) return res.status(500).json({ error: error.message });
     return res.status(200).json(data);
   }
   if (req.method === 'POST') {
-    const { golfer_id, course_id, gross_score, date_played } = req.body;
+    const { golfer_id, course_id, gross_score, date_played, holes_played } = req.body;
     if (!golfer_id || !course_id || !gross_score || !date_played) return res.status(400).json({ error: 'Missing required fields' });
-    const { data, error } = await supabase.from('scores').insert([{ golfer_id, course_id, gross_score, date_played }]).select();
+    const { data, error } = await supabase.from('scores').insert([{ golfer_id, course_id, gross_score, date_played, holes_played }]).select();
     if (error) return res.status(500).json({ error: error.message });
     return res.status(201).json(data?.[0]);
   }
   if (req.method === 'PUT') {
-    const { id, golfer_id, course_id, gross_score, date_played } = req.body;
+    const { id, golfer_id, course_id, gross_score, date_played, holes_played } = req.body;
     if (!id) return res.status(400).json({ error: 'ID is required' });
-    const { data, error } = await supabase.from('scores').update({ golfer_id, course_id, gross_score, date_played }).eq('id', id).select();
+    const { data, error } = await supabase.from('scores').update({ golfer_id, course_id, gross_score, date_played, holes_played }).eq('id', id).select();
     if (error) return res.status(500).json({ error: error.message });
     return res.status(200).json(data?.[0]);
   }
