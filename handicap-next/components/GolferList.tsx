@@ -7,7 +7,13 @@ interface GolferAvatarProps {
 }
 
 const GolferAvatar: React.FC<GolferAvatarProps> = ({ profile_picture, name, size = 32 }) => {
-  const src = profile_picture || '/default_profile.png';
+  const defaultSrc = '/default_profile.png';
+  const [src, setSrc] = React.useState(profile_picture || defaultSrc);
+
+  React.useEffect(() => {
+    setSrc(profile_picture || defaultSrc);
+  }, [profile_picture]);
+
   return (
     <img
       src={src}
@@ -23,6 +29,7 @@ const GolferAvatar: React.FC<GolferAvatarProps> = ({ profile_picture, name, size
         marginRight: 8,
         verticalAlign: 'middle',
       }}
+      onError={() => setSrc(defaultSrc)}
     />
   );
 };
