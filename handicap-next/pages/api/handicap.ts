@@ -51,11 +51,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // First, calculate differentials for all scores
   scoresWithDifferentials = scores.map(score => {
     const course = Array.isArray(score.courses) ? score.courses[0] : score.courses;
-    const differential = calculateDifferential(
-      score.gross_score, 
-      course.course_rating, 
-      course.slope_rating
-    );
+    let courseRating = score.holes_played === 9 ? course.course_rating / 2 : course.course_rating;
+    let slopeRating = course.slope_rating; // usually the same for 9/18, but check your data
+    const differential = calculateDifferential(score.gross_score, courseRating, slopeRating);
     return {
       ...score,
       course_name: course.name,
